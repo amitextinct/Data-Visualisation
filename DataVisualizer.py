@@ -1,76 +1,72 @@
-import pandas as pd
 import tkinter as tk
-from tkinter import ttk
-import seaborn as sns
+import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
 
-df = pd.read_csv("netflixViewingHistory.csv")
-df['Date'] = pd.to_datetime(df['Date'], format='mixed')
+# Read data from CSV file
+df = pd.read_csv('netflixViewingHistory.csv')
+
+# Convert the 'Date' column to datetime format
+df['Date'] = pd.to_datetime(df['Date'], format="mixed")
+
+# Merge different episodes and seasons of the same title into one
+df['Title'] = df['Title'].str.split(':', expand=True)[0]
+df['Title'] = df['Title'].str.split('(', expand=True)[0]
+df['Title'] = df['Title'].str.strip()
+
+# Count the number of unique titles in the dataset
+num_titles = len(df['Title'].unique())
 
 
 class App:
     def __init__(self, master):
         self.master = master
-        master.title("Netflix Viewing History")
+        master.title("Netflix Viewing History Analysis")
 
-        # Add a style to make the widgets look more modern
-        self.style = ttk.Style()
-        self.style.theme_use('clam')
+        self.label = tk.Label(
+            master, text="Select the type of graph/chart to display:")
+        self.label.pack()
 
-        # Add a frame for the main content
-        self.content_frame = ttk.Frame(self.master, padding="40 20")
-        self.content_frame.pack()
+        self.var = tk.StringVar(value="1")
 
-        # Add a label for the title
-        self.title_label = ttk.Label(
-            self.content_frame, text="Netflix Viewing History", font=("Helvetica", 20))
-        self.title_label.pack()
+        self.radio_button_1 = tk.Radiobutton(
+            master, text="Number of unique titles watched per month", variable=self.var, value="1")
+        self.radio_button_1.pack()
 
-        # Add a separator for visual hierarchy
-        self.separator = ttk.Separator(self.content_frame, orient='horizontal')
-        self.separator.pack(fill='x', pady=20)
+        self.radio_button_2 = tk.Radiobutton(
+            master, text="Pie chart of top 5 most viewed shows in a selected month and year", variable=self.var, value="2")
+        self.radio_button_2.pack()
 
-        # Add a label and entry for selecting the month
-        self.month_label = ttk.Label(
-            self.content_frame, text="Enter the month (MM): ")
-        self.month_label.pack(side='left', padx=(0, 10))
-        self.month_entry = ttk.Entry(self.content_frame, width=10)
-        self.month_entry.pack(side='left')
-
-        # Add a label and entry for selecting the year
-        self.year_label = ttk.Label(
-            self.content_frame, text="Enter the year (YYYY): ")
-        self.year_label.pack(side='left', padx=(20, 10))
-        self.year_entry = ttk.Entry(self.content_frame, width=10)
-        self.year_entry.pack(side='left')
-
-        # Add a separator for visual hierarchy
-        self.separator2 = ttk.Separator(
-            self.content_frame, orient='horizontal')
-        self.separator2.pack(fill='x', pady=20)
-
-        # Add radio buttons for selecting the type of graph
-        self.graph_type_label = ttk.Label(
-            self.content_frame, text="Select the type of graph: ")
-        self.graph_type_label.pack()
-
-        self.graph_type_var = tk.StringVar()
-        self.graph_type_var.set("unique_titles")
-
-        self.unique_titles_radio = ttk.Radiobutton(self.content_frame, text="Number of Unique Titles Watched Per Month",
-                                                   variable=self.graph_type_var, value="unique_titles")
-        self.unique_titles_radio.pack()
-
-        self.most_viewed_radio = ttk.Radiobutton(self.content_frame, text="Top 5 Most Viewed Shows in a Month",
-                                                 variable=self.graph_type_var, value="most_viewed")
-        self.most_viewed_radio.pack()
-
-        # Add a button for selecting the graph type
-        self.select_button = ttk.Button(
-            self.content_frame, text="Select", command=self.show_graph)
+        self.select_button = tk.Button(
+            master, text="Select", command=self.select)
         self.select_button.pack()
 
-    def show_graph(self):
+    def select(self):
+        choice = int(self.var.get())
+
+        if choice == 1:
+            self.show_bar_chart()
+        elif choice == 2:
+            self.show_pie_chart()
+
+    def show_bar_chart(self):
+        # Get user input for the month and year to display
+        self.top_label = tk.Label(self.master, text="Enter the month (1-12): ")
+        self.top_label.pack()
+        self.month_entry = tk.Entry(self.master)
+        self.month_entry.pack()
+
+        self.bottom_label = tk.Label(
+            self.master, text="Enter the year (YYYY): ")
+        self.bottom_label.pack()
+        self.year_entry = tk.Entry(self.master)
+        self.year_entry.pack()
+
+        self.ok_button = tk.Button(
+            self.master, text="OK", command=self.show_bar_chart_graph)
+        self.ok_button.pack()
+
+    def show_bar_chart_graph(self):
         month = int(self.month_entry.get())
         year = int(self.year_entry.get())
 
@@ -78,67 +74,62 @@ class App:
         df_filtered = df[(df['Date'].dt.month == month)
                          & (df['Date'].dt.year == year)]
         if len(df_filtered) == 0:
-            self.error_label = ttk.Label(
-                self.content_frame, text="No data available for the selected month and year.")
-            self.error_label.pack(pady=20)
+            self.error_label = tk.Label(
+                self.master, text="No data available for the selected month and year.")
+            self.error_label.pack()
             return
 
-        # Clear any previous error messages and graphs
-        for widget in self.content_frame.winfo_children():
-            if isinstance(widget, ttk.Label) and widget['foreground'] == 'red':
-                widget.destroy()
-            elif isinstance(widget, plt.FigureCanvasTkAgg):
-                widget.get_tk_widget().destroy()
+        # Group the filtered data by title and count the number of unique titles in each group
+        counts = df_filtered.groupby('Title')['Title'].count()
 
-        # Get the selected graph type and show the corresponding graph
-        graph_type = self.graph_type_var.get()
+        # Create a bar plot of viewing counts
+        sns.set_style("darkgrid")
+        counts.sort_values(ascending=False)[:20].plot(kind='bar')
+        plt.title('Top 20 Most Viewed Shows')
+        plt.xlabel('Title')
+        plt.ylabel('Number of Viewings')
+        plt.show()
 
-        if graph_type == "unique_titles":
-            self.plot_unique_titles(df_filtered)
-        elif graph_type == "most_viewed":
-            self.plot_most_viewed(df_filtered)
+    def show_pie_chart(self):
+        # Get user input for the month and year to display
+        self.top_label = tk.Label(self.master, text="Enter the month (1-12): ")
+        self.top_label.pack()
+        self.month_entry = tk.Entry(self.master)
+        self.month_entry.pack()
 
-    def plot_unique_titles(self, df_filtered):
-        # Group the data by day and count the unique titles
-        daily_unique_titles = df_filtered.groupby(
-            df_filtered['Date'].dt.day)['Title'].nunique()
+        self.bottom_label = tk.Label(
+            self.master, text="Enter the year (YYYY): ")
+        self.bottom_label.pack()
+        self.year_entry = tk.Entry(self.master)
+        self.year_entry.pack()
 
-        # Plot a line graph
-        fig, ax = plt.subplots(figsize=(10, 5))
-        sns.lineplot(data=daily_unique_titles, ax=ax)
-        ax.set_xlabel('Day of Month')
-        ax.set_ylabel('Number of Unique Titles')
-        ax.set_title(
-            'Number of Unique Titles Watched Per Day in Selected Month and Year')
+        self.ok_button = tk.Button(
+            self.master, text="OK", command=self.show_pie_chart_graph)
+        self.ok_button.pack()
 
-        # Embed the graph in the UI
-        canvas = FigureCanvasTkAgg(fig, master=self.content_frame)
-        canvas.draw()
-        canvas.get_tk_widget().pack()
+    def show_pie_chart_graph(self):
+        month = int(self.month_entry.get())
+        year = int(self.year_entry.get())
 
-    def plot_most_viewed(self, df_filtered):
-        # Group the data by show and count the number of episodes watched
-        show_episodes_watched = df_filtered.groupby(
-            'Title')['Episode'].nunique().reset_index()
-        show_episodes_watched.columns = ['Title', 'Episodes Watched']
+        # Filter the data by the selected month and year
+        df_filtered = df[(df['Date'].dt.month == month)
+                         & (df['Date'].dt.year == year)]
+        if len(df_filtered) == 0:
+            self.error_label = tk.Label(
+                self.master, text="No data available for the selected month and year.")
+            self.error_label.pack()
+            return
 
-        # Sort the data by number of episodes watched and select the top 5 shows
-        most_viewed = show_episodes_watched.sort_values(
-            'Episodes Watched', ascending=False).head(5)
+        # Count the number of viewings for each title
+        counts = df_filtered['Title'].value_counts()
 
-        # Plot a pie chart
-        fig, ax = plt.subplots(figsize=(10, 5))
-        ax.pie(most_viewed['Episodes Watched'],
-               labels=most_viewed['Title'], autopct='%1.1f%%', startangle=90)
-        ax.set_title('Top 5 Most Viewed Shows in Selected Month and Year')
-
-        # Embed the graph in the UI
-        canvas = FigureCanvasTkAgg(fig, master=self.content_frame)
-        canvas.draw()
-        canvas.get_tk_widget().pack()
+        # Create a pie chart of the top 5 most viewed shows
+        sns.set_style("whitegrid")
+        counts.sort_values(ascending=False)[:5].plot(kind='pie')
+        plt.title('Top 5 Most Viewed Shows')
+        plt.show()
 
 
-if __name__ == '__main__':
-    root = tk.Tk()
-    app = App(root)
-    root.mainloop()
+root = tk.Tk()
+app = App(root)
+root.mainloop()
